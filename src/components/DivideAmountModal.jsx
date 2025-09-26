@@ -8,13 +8,22 @@ export default function DivideAmountModal({ isOpen, onClose, invoices }) {
     { projectId: "", amount: "", percentage: "" },
   ]);
 
-  const totalAmount = invoices.reduce((sum, inv) => sum + inv.amount.final, 0);
+  // Calculate total amount from invoices, handling null values
+  const totalAmount = invoices.reduce(
+    (sum, inv) => sum + (inv.totals.totalPay || 0),
+    0
+  );
+
+  // Calculate allocated amount
   const allocatedAmount = allocations.reduce(
     (sum, a) => sum + (parseFloat(a.amount) || 0),
     0
   );
+
+  // Calculate remaining amount
   const remaining = totalAmount - allocatedAmount;
 
+  // Update allocation when input changes
   const updateAllocation = (index, field, value) => {
     const updated = [...allocations];
     updated[index][field] = value;
@@ -26,12 +35,15 @@ export default function DivideAmountModal({ isOpen, onClose, invoices }) {
 
     if (field === "amount") {
       const amt = parseFloat(value) || 0;
-      updated[index].percentage = ((amt / totalAmount) * 100).toFixed(2);
+      updated[index].percentage = totalAmount
+        ? ((amt / totalAmount) * 100).toFixed(2)
+        : "";
     }
 
     setAllocations(updated);
   };
 
+  // Add a new project allocation row
   const addProject = () => {
     setAllocations([
       ...allocations,
@@ -39,10 +51,12 @@ export default function DivideAmountModal({ isOpen, onClose, invoices }) {
     ]);
   };
 
+  // Remove a project allocation row
   const removeProject = (index) => {
     setAllocations(allocations.filter((_, i) => i !== index));
   };
 
+  // Handle apply button click
   const handleApply = () => {
     if (remaining !== 0) {
       alert("⚠️ Please allocate the full amount before applying.");
@@ -59,7 +73,7 @@ export default function DivideAmountModal({ isOpen, onClose, invoices }) {
       <div className="bg-white rounded-md shadow-xl w-full max-w-2xl p-6 relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4  cursor-pointer text-gray-500 hover:text-gray-700"
+          className="absolute top-4 right-4 cursor-pointer text-gray-500 hover:text-gray-700"
         >
           <AiOutlineClose className="w-5 h-5" />
         </button>
@@ -69,14 +83,14 @@ export default function DivideAmountModal({ isOpen, onClose, invoices }) {
         </h2>
 
         {/* Selected Invoices */}
-        <div className="bg-gray-50 border border-gray-200 rounded-md p-4 max-h-40 overflow-y-auto  custom-scrollbar mb-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-md p-4 max-h-40 overflow-y-auto custom-scrollbar mb-4">
           {invoices.map((inv) => (
             <div key={inv.id} className="flex justify-between py-1">
               <span className="text-gray-700">
-                {inv.worker} - {inv.date}
+                {inv.workerName} - {inv.payPeriod}
               </span>
               <span className="font-medium text-gray-900">
-                ${inv.amount.final}
+                ${inv.totals.totalPay ? inv.totals.totalPay.toFixed(2) : "N/A"}
               </span>
             </div>
           ))}
@@ -152,7 +166,7 @@ export default function DivideAmountModal({ isOpen, onClose, invoices }) {
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-md  cursor-pointer border bg-gray-100 hover:bg-gray-200 transition"
+            className="px-4 py-2 rounded-md cursor-pointer border bg-gray-100 hover:bg-gray-200 transition"
           >
             Cancel
           </button>

@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchPayroll } from "@/redux/payRole/PayRole";
 import Header from "@/components/PendingReview/Header";
 import SummaryStats from "@/components/PendingReview/SummaryStats";
 import FiltersAndActions from "@/components/PendingReview/FiltersAndActions";
@@ -7,143 +9,57 @@ import WorkersTable from "@/components/PendingReview/WorkersTable";
 import InvoiceModal from "@/components/PendingReview/InvoiceModal.jsx";
 import Banner from "@/components/layout/Banner";
 
-//  JSON Data
-const jsonWorkersData = [
-  {
-    Worker: "Shahzaib Mughal  Shahzaib Mughal ",
-    WorkerID: 9,
-    Email: "fortest372.sms@gmail.com",
-    HourlyRate: 0.0,
-    DailyWagesRate: 0.0,
-    PayPeriod: "Sep 10-11, 2025",
-    Shifts: 3,
-    TotalHours: 16.25,
-    Overtime: 1.0,
-    TotalPay: 0.0,
-    Status: "Pending Review",
-    Actions: ["Details", "Process"],
-    ShiftDetails: [
-      {
-        ShiftId: 1,
-        PayPeriod: "2025-09-10 09:00:00",
-        CheckIn: "2025-09-10 09:00:00",
-        CheckOut: "2025-09-10 18:00:00",
-        TotalHours: 9.0,
-        DailyWagesHours: 8.0,
-        ExtraHours: 1.0,
-      },
-      {
-        ShiftId: 2,
-        PayPeriod: "2025-09-11 09:45:00",
-        CheckIn: "2025-09-11 09:45:00",
-        CheckOut: "2025-09-11 15:00:00",
-        TotalHours: 5.25,
-        DailyWagesHours: 5.25,
-        ExtraHours: 0,
-      },
-      {
-        ShiftId: 3,
-        PayPeriod: "2025-09-11 16:00:00",
-        CheckIn: "2025-09-11 16:00:00",
-        CheckOut: "2025-09-11 18:00:00",
-        TotalHours: 2.0,
-        DailyWagesHours: 2.0,
-        ExtraHours: 0,
-      },
-    ],
-  },
-  {
-    Worker: "M M",
-    WorkerID: 12,
-    Email: "iamhamza013@gmail.com",
-    HourlyRate: null,
-    DailyWagesRate: null,
-    PayPeriod: "Sep 10-15, 2025",
-    Shifts: 5,
-    TotalHours: 23.01,
-    Overtime: 1.23,
-    TotalPay: null,
-    Status: "Pending Review",
-    Actions: ["Details", "Process"],
-    ShiftDetails: [
-      {
-        ShiftId: 4,
-        PayPeriod: "2025-09-10 09:00:00",
-        CheckIn: "2025-09-10 09:00:00",
-        CheckOut: "2025-09-10 13:00:00",
-        TotalHours: 4.0,
-        DailyWagesHours: 4.0,
-        ExtraHours: 0,
-      },
-      {
-        ShiftId: 5,
-        PayPeriod: "2025-09-10 14:00:00",
-        CheckIn: "2025-09-10 14:00:00",
-        CheckOut: "2025-09-10 17:00:00",
-        TotalHours: 3.0,
-        DailyWagesHours: 3.0,
-        ExtraHours: 0,
-      },
-      {
-        ShiftId: 8,
-        PayPeriod: "2025-09-10 19:13:00",
-        CheckIn: "2025-09-10 19:13:00",
-        CheckOut: "2025-09-10 21:00:00",
-        TotalHours: 1.78,
-        DailyWagesHours: 1.0,
-        ExtraHours: 0.78,
-      },
-      {
-        ShiftId: 6,
-        PayPeriod: "2025-09-12 09:33:00",
-        CheckIn: "2025-09-12 09:33:00",
-        CheckOut: "2025-09-12 18:00:00",
-        TotalHours: 8.45,
-        DailyWagesHours: 8.0,
-        ExtraHours: 0.45,
-      },
-      {
-        ShiftId: 7,
-        PayPeriod: "2025-09-15 09:13:00",
-        CheckIn: "2025-09-15 09:13:00",
-        CheckOut: "2025-09-15 15:00:00",
-        TotalHours: 5.78,
-        DailyWagesHours: 5.78,
-        ExtraHours: 0,
-      },
-    ],
-  },
-];
-
 const PendingReview = () => {
-  // State management for your JSON data
+  const dispatch = useDispatch();
+  const {
+    data: apiWorkersData,
+    loading,
+    error,
+  } = useSelector((state) => state.payroll);  
+
+  console.log("API Workers Data:", apiWorkersData);
+
+  // Calculate default date range: current date to 7 days prior
+  const today = new Date();
+  const past7Days = new Date();
+  past7Days.setDate(today.getDate() - 15);
+
+  const formatDate = (date, endOfDay = false) => {
+    if (endOfDay) {
+      date.setHours(23, 59, 59, 999);
+    } else {
+      date.setHours(0, 0, 0, 0);
+    }
+    return date.toISOString();
+  };
+
+  // State management
   const [workers, setWorkers] = useState([]);
-  const [originalJsonData, setOriginalJsonData] = useState(jsonWorkersData);
+  const [originalData, setOriginalData] = useState([]);
   const [dateFilter, setDateFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchInput, setSearchInput] = useState("");
   const [showCustomDateRange, setShowCustomDateRange] = useState(false);
-  const [fromDate, setFromDate] = useState("2025-09-01");
-  const [toDate, setToDate] = useState("2025-09-30");
+  const [fromDate, setFromDate] = useState(formatDate(past7Days));
+  const [toDate, setToDate] = useState(formatDate(today));
   const [filterStatus, setFilterStatus] = useState("");
   const [modalWorker, setModalWorker] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize data from JSON
+  // Fetch payroll data from API
   useEffect(() => {
-    const loadJsonData = () => {
-      setIsLoading(true);
-      // Simulate API loading delay
-      setTimeout(() => {
-        setWorkers([...originalJsonData]);
-        setIsLoading(false);
-      }, 500);
-    };
+    dispatch(fetchPayroll({ startDate: past7Days, endDate: today }));
+  }, [dispatch, fromDate, toDate]);
 
-    loadJsonData();
-  }, []);
+  // Update workers state when API data changes
+  useEffect(() => {
+    if (apiWorkersData) {
+      setWorkers(apiWorkersData);
+      setOriginalData(apiWorkersData);
+      updateFilterStatus(apiWorkersData.length);
+    }
+  }, [apiWorkersData]);
 
-  // Data transformation functions for your JSON structure
+  // Data transformation functions
   const transformWorkerData = (jsonWorker) => ({
     id: jsonWorker.WorkerID.toString(),
     name: jsonWorker.Worker.trim(),
@@ -151,7 +67,7 @@ const PendingReview = () => {
     totalHours: jsonWorker.TotalHours,
     overtimeHours: jsonWorker.Overtime,
     totalPay: jsonWorker.TotalPay,
-    status: jsonWorker.Status.toLowerCase().replace(/\s+/g, ""), // "Pending Review" -> "pendingreview"
+    status: jsonWorker.Status.toLowerCase().replace(/\s+/g, ""),
     shifts: jsonWorker.Shifts,
     avatar: jsonWorker.Worker.trim()
       .split(" ")
@@ -159,15 +75,14 @@ const PendingReview = () => {
       .join("")
       .substring(0, 2)
       .toUpperCase(),
-    payPeriod: "current-week", // You can map this based on your needs
+    payPeriod: "current-week",
     periodLabel: jsonWorker.PayPeriod,
     hourlyRate: jsonWorker.HourlyRate,
     dailyWagesRate: jsonWorker.DailyWagesRate,
     actions: jsonWorker.Actions,
     shiftDetails: jsonWorker.ShiftDetails || [],
-    // Convert shift details for the modal
     detailedShifts: jsonWorker.ShiftDetails
-      ? jsonWorker.ShiftDetails.map((shift, index) => ({
+      ? jsonWorker.ShiftDetails.map((shift) => ({
           date: new Date(shift.CheckIn).toISOString().split("T")[0],
           shiftId: `SH${String(shift.ShiftId).padStart(3, "0")}`,
           checkIn: new Date(shift.CheckIn).toTimeString().substring(0, 5),
@@ -179,12 +94,12 @@ const PendingReview = () => {
           extraHours: shift.ExtraHours,
         }))
       : [],
-    overtimeRate: 1.5,
+    overtimeRate: jsonWorker.Overtime,
     internalNotes: "",
     uploadedFiles: [],
   });
 
-  // Status helpers - Updated for your JSON structure
+  // Status helpers
   const getStatusColor = (status) => {
     const normalizedStatus = status.toLowerCase().replace(/\s+/g, "");
     switch (normalizedStatus) {
@@ -215,10 +130,24 @@ const PendingReview = () => {
     }
   };
 
-  // Filter and search functions
+  // Date parsing helper (for "Sep 18-18, 2025" format)
+  const parsePayPeriod = (payPeriod) => {
+    if (!payPeriod) return { start: null, end: null };
 
+    // Example: "Sep 18-18, 2025"
+    const [monthDay, year] = payPeriod.split(",");
+    const [month, range] = monthDay.trim().split(" ");
+    const [startDay, endDay] = range.split("-");
+
+    const startDate = new Date(`${month} ${startDay}, ${year.trim()}`);
+    const endDate = new Date(`${month} ${endDay}, ${year.trim()}`);
+
+    return { start: startDate, end: endDate };
+  };
+
+  // Filter and search functions
   const applyFilters = () => {
-    let filteredWorkers = [...originalJsonData];
+    let filteredWorkers = [...originalData];
 
     // Status filter
     if (statusFilter !== "all") {
@@ -242,11 +171,17 @@ const PendingReview = () => {
       );
     }
 
-    // Date range filter (if custom)
+    // Date range filter (PayPeriod based)
     if (showCustomDateRange && fromDate && toDate) {
+      const filterStartDate = new Date(fromDate);
+      const filterEndDate = new Date(toDate);
+
       filteredWorkers = filteredWorkers.filter((worker) => {
-        // You can implement date filtering based on PayPeriod or other date fields
-        return true; // Placeholder - implement based on your date logic
+        const { start, end } = parsePayPeriod(worker.PayPeriod);
+
+        if (!start || !end) return false;
+
+        return start >= filterStartDate && end <= filterEndDate;
       });
     }
 
@@ -259,8 +194,10 @@ const PendingReview = () => {
     setStatusFilter("all");
     setSearchInput("");
     setShowCustomDateRange(false);
-    setWorkers([...originalJsonData]);
-    updateFilterStatus(originalJsonData.length);
+    setFromDate("2025-09-01");
+    setToDate("2025-09-30");
+    setWorkers([...originalData]);
+    updateFilterStatus(originalData.length);
   };
 
   const updateFilterStatus = (count) => {
@@ -277,7 +214,7 @@ const PendingReview = () => {
     setFilterStatus(statusText);
   };
 
-  // Statistics calculation from your JSON data
+  // Statistics calculation
   const calculateStats = () => {
     const totalEmployees = workers.length;
     const totalPayroll = workers.reduce((sum, worker) => {
@@ -305,7 +242,7 @@ const PendingReview = () => {
     };
   };
 
-  // Modal functions for detailed view
+  // Modal functions
   const viewDetails = (workerId) => {
     const jsonWorker = workers.find(
       (w) => w.WorkerID.toString() === workerId.toString()
@@ -320,7 +257,7 @@ const PendingReview = () => {
     setModalWorker(null);
   };
 
-  // Process functions for your JSON data
+  // Process functions
   const processInvoice = (workerId) => {
     const worker = workers.find(
       (w) => w.WorkerID.toString() === workerId.toString()
@@ -332,21 +269,20 @@ const PendingReview = () => {
         `Process invoice for ${worker.Worker.trim()}? This action cannot be undone.`
       )
     ) {
-      // Update the worker status in both arrays
       const updatedWorkers = workers.map((w) =>
         w.WorkerID.toString() === workerId.toString()
           ? { ...w, Status: "Processed" }
           : w
       );
 
-      const updatedOriginalData = originalJsonData.map((w) =>
+      const updatedOriginalData = originalData.map((w) =>
         w.WorkerID.toString() === workerId.toString()
           ? { ...w, Status: "Processed" }
           : w
       );
 
       setWorkers(updatedWorkers);
-      setOriginalJsonData(updatedOriginalData);
+      setOriginalData(updatedOriginalData);
       closeModal();
       showNotification(
         `Invoice processed successfully for ${worker.Worker.trim()}`,
@@ -373,14 +309,14 @@ const PendingReview = () => {
           : w
       );
 
-      const updatedOriginalData = originalJsonData.map((w) =>
+      const updatedOriginalData = originalData.map((w) =>
         w.Status.toLowerCase().includes("approved")
           ? { ...w, Status: "Processed" }
           : w
       );
 
       setWorkers(updatedWorkers);
-      setOriginalJsonData(updatedOriginalData);
+      setOriginalData(updatedOriginalData);
       showNotification(
         `Successfully processed ${approvedWorkers.length} invoices.`,
         "success"
@@ -389,7 +325,6 @@ const PendingReview = () => {
   };
 
   const exportPayroll = () => {
-    // Create CSV data from your JSON structure
     const csvData = workers.map((worker) => ({
       WorkerID: worker.WorkerID,
       Name: worker.Worker.trim(),
@@ -406,10 +341,9 @@ const PendingReview = () => {
       "Payroll report exported successfully! Check your downloads.",
       "success"
     );
-    // In real implementation, you would generate and download the CSV file
   };
 
-  // Detailed shift management functions for modal
+  // Detailed shift management functions
   const calculateDetailedHours = (checkIn, endShift) => {
     if (!checkIn || !endShift) return 0;
     const [checkInHour, checkInMin] = checkIn.split(":").map(Number);
@@ -433,6 +367,8 @@ const PendingReview = () => {
     const overtimeHours = Math.max(effectiveHours - 8, 0);
     const hourlyRate = dailyWage / 8;
     const overtimeHourlyRate = hourlyRate * overtimeRate;
+
+
 
     return {
       regularHours,
@@ -617,27 +553,25 @@ const PendingReview = () => {
   const saveChanges = (workerId) => {
     if (!modalWorker) return;
 
-    // Update the original data with changes
-    const updatedOriginalData = originalJsonData.map((worker) => {
+    const updatedOriginalData = originalData.map((worker) => {
       if (worker.WorkerID.toString() === workerId.toString()) {
         return {
           ...worker,
-          // Update any changed fields here
           internalNotes: modalWorker.internalNotes || "",
         };
       }
       return worker;
     });
 
-    setOriginalJsonData(updatedOriginalData);
-    applyFilters(); // Refresh the filtered data
+    setOriginalData(updatedOriginalData);
+    applyFilters();
     closeModal();
     showNotification(`Changes saved for ${modalWorker.name}`, "success");
   };
 
   const resetToOriginal = (workerId) => {
     if (window.confirm("Reset all changes to original values?")) {
-      const originalWorker = originalJsonData.find(
+      const originalWorker = originalData.find(
         (w) => w.WorkerID.toString() === workerId.toString()
       );
       if (originalWorker) {
@@ -696,19 +630,21 @@ const PendingReview = () => {
 
   // Apply filters when dependencies change
   useEffect(() => {
-    if (!isLoading) {
+    if (!loading && apiWorkersData) {
       applyFilters();
     }
-  }, [statusFilter, searchInput, dateFilter, fromDate, toDate]);
+  }, [statusFilter, searchInput, dateFilter, fromDate, toDate, apiWorkersData]);
 
   // Initialize filter status
   useEffect(() => {
-    updateFilterStatus(workers.length);
+    if (apiWorkersData) {
+      updateFilterStatus(workers.length);
+    }
   }, [workers, statusFilter, searchInput]);
 
   const stats = calculateStats();
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -719,9 +655,18 @@ const PendingReview = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-500">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-full">
-      {/* Banner */}
       <Banner
         title="Pending Reviews"
         breadcrumb={[
@@ -739,6 +684,7 @@ const PendingReview = () => {
           searchInput={searchInput}
           setSearchInput={setSearchInput}
           showCustomDateRange={showCustomDateRange}
+          setShowCustomDateRange={setShowCustomDateRange}
           fromDate={fromDate}
           setFromDate={setFromDate}
           toDate={toDate}

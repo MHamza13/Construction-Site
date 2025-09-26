@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
-import { projects } from "@/data/projects";
-import workers from "@/data/workers.json";
+import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchProjects } from "@/redux/projects/ProjectSlice";
+import { fetchWorkers } from "@/redux/worker/WorkerSlice";
+import Swal from "sweetalert2";
 import {
   Search,
   FileCheck2,
@@ -13,6 +15,17 @@ import {
 } from "lucide-react";
 
 export default function InvoiceFilters({ onFilterChange }) {
+  const dispatch = useDispatch();
+  const {
+    items: projects,
+    loading: projectsLoading,
+    error: projectsError,
+  } = useSelector((state) => state.projects);
+  const {
+    items: workers,
+    loading: workersLoading,
+    error: workersError,
+  } = useSelector((state) => state.workers);
   const [filters, setFilters] = useState({
     status: "",
     payment: "",
@@ -23,9 +36,59 @@ export default function InvoiceFilters({ onFilterChange }) {
     search: "",
   });
 
+  // Fetch projects and workers on mount
+  useEffect(() => {
+    console.log("Fetching projects and workers...");
+    dispatch(fetchProjects()).then((result) => {
+      if (result.error) {
+        console.error("Failed to fetch projects:", result.error);
+        Swal.fire({
+          icon: "error",
+          title: "Failed to Load Projects",
+          text: "Unable to fetch projects from the server. Please try again.",
+          confirmButtonColor: "#dc2626",
+        });
+      }
+    });
+    dispatch(fetchWorkers()).then((result) => {
+      if (result.error) {
+        console.error("Failed to fetch workers:", result.error);
+        Swal.fire({
+          icon: "error",
+          title: "Failed to Load Workers",
+          text: "Unable to fetch workers from the server. Please try again.",
+          confirmButtonColor: "#dc2626",
+        });
+      }
+    });
+  }, [dispatch]);
+
   const handleChange = (e) => {
-    const newFilters = { ...filters, [e.target.name]: e.target.value };
+    const { name, value } = e.target;
+    let newFilters = { ...filters, [name]: value };
+
+    // Validate date range
+    if (name === "from" && filters.to && value > filters.to) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid Date Range",
+        text: "From date cannot be after To date.",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
+    if (name === "to" && filters.from && value < filters.from) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid Date Range",
+        text: "To date cannot be before From date.",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
+
     setFilters(newFilters);
+    console.log("Filters updated:", newFilters);
     onFilterChange(newFilters);
   };
 
@@ -40,6 +103,7 @@ export default function InvoiceFilters({ onFilterChange }) {
       search: "",
     };
     setFilters(emptyFilters);
+    console.log("Filters cleared:", emptyFilters);
     onFilterChange(emptyFilters);
   };
 
@@ -56,7 +120,9 @@ export default function InvoiceFilters({ onFilterChange }) {
               <Search className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Filter Invoices</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                Filter Invoices
+              </h2>
               <p className="text-gray-600 text-sm">
                 Refine your invoice search with multiple criteria
               </p>
@@ -107,6 +173,7 @@ export default function InvoiceFilters({ onFilterChange }) {
                 <option value="">All Status</option>
                 <option value="Approved">Approved</option>
                 <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
                 <option value="Paid">Paid</option>
               </select>
             </div>
@@ -126,8 +193,8 @@ export default function InvoiceFilters({ onFilterChange }) {
                 className="w-full pl-10 pr-8 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white appearance-none text-sm"
               >
                 <option value="">All Payments</option>
-                <option value="Pending">Pending</option>
                 <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
               </select>
             </div>
           </div>
@@ -143,9 +210,16 @@ export default function InvoiceFilters({ onFilterChange }) {
                 name="project"
                 value={filters.project}
                 onChange={handleChange}
+                disabled={projectsLoading || projectsError}
                 className="w-full pl-10 pr-8 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white appearance-none text-sm"
               >
-                <option value="">All Projects</option>
+                <option value="">
+                  {projectsLoading
+                    ? "Loading..."
+                    : projectsError
+                    ? "Error"
+                    : "All Projects"}
+                </option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.name}>
                     {p.name}
@@ -166,12 +240,19 @@ export default function InvoiceFilters({ onFilterChange }) {
                 name="worker"
                 value={filters.worker}
                 onChange={handleChange}
+                disabled={workersLoading || workersError}
                 className="w-full pl-10 pr-8 py-2.5 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white appearance-none text-sm"
               >
-                <option value="">All Workers</option>
+                <option value="">
+                  {workersLoading
+                    ? "Loading..."
+                    : workersError
+                    ? "Error"
+                    : "All Workers"}
+                </option>
                 {workers.map((w) => (
                   <option key={w.id} value={w.name}>
-                    {w.name}
+                    {w.firstName} {w.lastName}
                   </option>
                 ))}
               </select>

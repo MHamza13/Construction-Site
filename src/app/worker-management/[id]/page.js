@@ -16,6 +16,7 @@ import PendingInvoices from "@/components/PendingInvoices";
 import ProjectAssignments from "@/components/ProjectAssignments";
 import WorkerTasks from "@/components/WorkerTasks";
 import WorkerInvoices from "@/components/WorkerInvoices";
+import WorkerShifts from "@/components/WorkerShifts";
 
 export default function WorkerDetails() {
   const { id } = useParams();
@@ -240,11 +241,11 @@ export default function WorkerDetails() {
           {/* Tabs */}
           <div className="mt-8 border-b border-gray-200">
             <nav className="flex space-x-6">
-              {["overview", "projects", "tasks", "invoices"].map((tab) => (
+              {["overview", "tasks", "invoices", "shifts"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`pb-2 px-2 text-sm font-medium ${
+                  className={`pb-2 px-2 text-sm font-medium cursor-pointer ${
                     activeTab === tab
                       ? "text-blue-600 border-b-2 border-blue-600"
                       : "text-gray-500 hover:text-gray-700"
@@ -264,15 +265,13 @@ export default function WorkerDetails() {
                 <PendingInvoices invoices={worker.pendingInvoices || []} />
               </div>
             )}
-            {activeTab === "projects" && (
-              <ProjectAssignments projects={worker.projects || []} />
-            )}
             {activeTab === "tasks" && (
-              <WorkerTasks tasks={worker.tasks || []} />
+              <WorkerTasks tasks={worker.tasks || []} workerId={worker.id} />
             )}
             {activeTab === "invoices" && (
               <WorkerInvoices invoices={worker.invoices || []} />
             )}
+            {activeTab === "shifts" && <WorkerShifts workerId={worker.id} />}
           </div>
         </div>
 

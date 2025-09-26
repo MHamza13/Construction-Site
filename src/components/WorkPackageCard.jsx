@@ -7,6 +7,7 @@ export default function WorkPackageCard({
   phaseId,
   onDeleteWorkPackage,
   onEditWorkPackage,
+  loading,
 }) {
   // Fetch workers from Redux store
   const workers = useSelector((state) => state.workers?.items ?? []);
@@ -45,29 +46,27 @@ export default function WorkPackageCard({
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4 transition-all hover:shadow-md">
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1 min-w-0">
-          {/* 📝 Title from API */}
           <h4 className="font-semibold text-gray-800 text-lg truncate">
             {pkg.title}
           </h4>
-          {/* 📝 Description from API */}
           <p className="text-sm text-gray-600 mt-1 line-clamp-2">
             {pkg.description}
           </p>
         </div>
         <div className="flex gap-2 ml-3 flex-shrink-0">
-          {/* ✏️ Edit Button */}
           <button
             onClick={() => onEditWorkPackage(phaseId, pkg)}
             className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
             aria-label="Edit work package"
+            disabled={loading}
           >
             <PencilIcon className="h-5 w-5 text-blue-600" />
           </button>
-          {/* ❌ Delete Button */}
           <button
             onClick={() => onDeleteWorkPackage(phaseId, pkg.id)}
             className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
             aria-label="Delete work package"
+            disabled={loading}
           >
             <XMarkIcon className="h-5 w-5 text-red-600" />
           </button>
@@ -75,7 +74,6 @@ export default function WorkPackageCard({
       </div>
 
       <div className="flex flex-wrap gap-2 mb-3">
-        {/* Status Badge */}
         <span
           className={`px-3 py-1.5 rounded-full text-xs font-medium ${getStatusBadge(
             pkg.status
@@ -83,8 +81,6 @@ export default function WorkPackageCard({
         >
           {pkg.status}
         </span>
-
-        {/* Priority Badge */}
         <span
           className={`px-3 py-1.5 rounded-full text-xs font-medium ${
             pkg.priority === "High"
@@ -96,8 +92,6 @@ export default function WorkPackageCard({
         >
           {pkg.priority} Priority
         </span>
-
-        {/* Due Date */}
         {pkg.dueDate && (
           <span className="flex items-center px-3 py-1.5 bg-gray-100 rounded-full text-xs font-medium text-gray-700">
             <svg
@@ -119,7 +113,6 @@ export default function WorkPackageCard({
         )}
       </div>
 
-      {/* Assigned Workers */}
       {pkg.workerAssignIds && pkg.workerAssignIds.length > 0 && (
         <div className="pt-3 border-t border-gray-100">
           <p className="text-xs font-medium text-gray-500 mb-2">
@@ -145,7 +138,7 @@ export default function WorkPackageCard({
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                   />
                 </svg>
-                {getWorkerName(workerId)} {/* Display worker name */}
+                {getWorkerName(workerId)}
               </span>
             ))}
           </div>

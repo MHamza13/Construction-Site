@@ -32,6 +32,7 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckCircleIcon },
   { name: "Workers", href: "/worker-management", icon: UsersIcon },
   { name: "Attendance", href: "/attendance", icon: ClockIcon },
+  { name: "Shifts", href: "/shift", icon: ClockIcon },
   {
     name: "Payroll",
     icon: CurrencyDollarIcon,
@@ -103,7 +104,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 flex flex-col justify-between overflow-y-auto">
+      <div className="flex-1 flex flex-col justify-between overflow-y-auto sidebar-scroller">
         <nav className="px-3 py-4 flex-1">
           <div className="space-y-1">
             {navigation.map((item) =>

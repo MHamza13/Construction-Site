@@ -63,8 +63,11 @@ export const fetchTasks = createAsyncThunk(
       const { lastFetched, cacheExpiry, items } = state.tasks;
 
       // Check if we have cached data that's still valid
-      if (items.length > 0 && lastFetched &&
-        (Date.now() - lastFetched) < cacheExpiry) {
+      if (
+        items.length > 0 &&
+        lastFetched &&
+        Date.now() - lastFetched < cacheExpiry
+      ) {
         console.log("Using cached tasks data");
         return { data: items, fromCache: true };
       }
@@ -83,6 +86,22 @@ export const fetchTaskById = createAsyncThunk(
   async (id, { rejectWithValue, getState }) => {
     try {
       const res = await axios.get(`${API_URL}/${id}`, getAuthHeader(getState));
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
+// ✅ Fetch tasks by workerId
+export const fetchTasksByWorkerId = createAsyncThunk(
+  "tasks/fetchTasksByWorkerId",
+  async (workerId, { rejectWithValue, getState }) => {
+    try {
+      const res = await axios.get(
+        `${API_URL}/worker/${workerId}`,
+        getAuthHeader(getState)
+      );
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data || err.message);
@@ -184,6 +203,18 @@ const taskSlice = createSlice({
         state.currentTask = action.payload;
       })
       .addCase(fetchTaskById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      .addCase(fetchTasksByWorkerId.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchTasksByWorkerId.fulfilled, (state, action) => {
+        state.loading = false;
+        state.items = action.payload; // replace with worker tasks
+      })
+      .addCase(fetchTasksByWorkerId.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })

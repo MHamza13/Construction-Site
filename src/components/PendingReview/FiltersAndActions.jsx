@@ -1,4 +1,4 @@
-import { Calendar, Search, RotateCcw, Play, Download } from "lucide-react";
+import { Calendar, Search, RotateCcw } from "lucide-react";
 
 const FiltersAndActions = ({
   dateFilter,
@@ -8,6 +8,7 @@ const FiltersAndActions = ({
   searchInput,
   setSearchInput,
   showCustomDateRange,
+  setShowCustomDateRange,
   fromDate,
   setFromDate,
   toDate,
@@ -17,6 +18,59 @@ const FiltersAndActions = ({
   processAllApproved,
   exportPayroll,
 }) => {
+  const today = new Date("2025-09-22");
+
+  // helper: month ka naam return kare
+  const getMonthName = (date) => {
+    return date.toLocaleString("en-US", { month: "long" });
+  };
+
+  // Format date to display day and month name
+  const formatDateDisplay = (date) => {
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  // Calculate date ranges for presets
+  const getDateRange = (type) => {
+    const start = new Date(today);
+    const end = new Date(today);
+    switch (type) {
+      case "current-week":
+        start.setDate(today.getDate() - today.getDay());
+        end.setDate(today.getDate() - today.getDay() + 6);
+        return { start, end };
+      case "last-week":
+        start.setDate(today.getDate() - today.getDay() - 7);
+        end.setDate(today.getDate() - today.getDay() - 1);
+        return { start, end };
+      case "current-month":
+        start.setDate(1);
+        end.setMonth(today.getMonth() + 1);
+        end.setDate(0);
+        return { start, end };
+      case "last-month":
+        start.setMonth(today.getMonth() - 1);
+        start.setDate(1);
+        end.setMonth(today.getMonth());
+        end.setDate(0);
+        return { start, end };
+      default:
+        return { start: null, end: null };
+    }
+  };
+
+  // Generate display text for date options
+  const currentWeek = getDateRange("current-week");
+  const lastWeek = getDateRange("last-week");
+  const currentMonth = getDateRange("current-month");
+  const lastMonth = getDateRange("last-month");
+
+  console.log( currentWeek ,"currentWeek");
+
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-8">
       <div className="space-y-6">
@@ -30,7 +84,7 @@ const FiltersAndActions = ({
               Pay Period Filter
             </h4>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
               <label className="block text-xs font-medium text-gray-700 mb-2">
@@ -38,21 +92,38 @@ const FiltersAndActions = ({
               </label>
               <select
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) => {
+                  setDateFilter(e.target.value);
+                  setShowCustomDateRange(e.target.value === "custom");
+                }}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white shadow-sm transition-all duration-200"
               >
                 <option value="all">All Periods</option>
-                <option value="current-week">This Week (Sept 1-7, 2025)</option>
-                <option value="last-week">Last Week (Aug 25-31, 2025)</option>
-                <option value="current-month">This Month (September 2025)</option>
-                <option value="last-month">Last Month (August 2025)</option>
+                <option value="current-week">
+                  This Week ({formatDateDisplay(currentWeek.start)} -{" "}
+                  {formatDateDisplay(currentWeek.end)})
+                </option>
+                <option value="last-week">
+                  Last Week ({formatDateDisplay(lastWeek.start)} -{" "}
+                  {formatDateDisplay(lastWeek.end)})
+                </option>
+                <option value="current-month">
+                  This Month ({getMonthName(currentMonth.start)}{" "}
+                  {currentMonth.start.getFullYear()})
+                </option>
+                <option value="last-month">
+                  Last Month ({getMonthName(lastMonth.start)}{" "}
+                  {lastMonth.start.getFullYear()})
+                </option>
                 <option value="custom">Custom Date Range</option>
               </select>
             </div>
-            
+
             <div
               className={`transition-all duration-300 ${
-                showCustomDateRange ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                showCustomDateRange
+                  ? "opacity-100"
+                  : "opacity-0 pointer-events-none"
               }`}
             >
               <label className="block text-xs font-medium text-gray-700 mb-2">
@@ -65,10 +136,12 @@ const FiltersAndActions = ({
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white shadow-sm transition-all duration-200"
               />
             </div>
-            
+
             <div
               className={`transition-all duration-300 ${
-                showCustomDateRange ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                showCustomDateRange
+                  ? "opacity-100"
+                  : "opacity-0 pointer-events-none"
               }`}
             >
               <label className="block text-xs font-medium text-gray-700 mb-2">
@@ -81,7 +154,7 @@ const FiltersAndActions = ({
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white shadow-sm transition-all duration-200"
               />
             </div>
-            
+
             <div className="flex justify-end">
               <button
                 onClick={resetFilters}
@@ -92,7 +165,7 @@ const FiltersAndActions = ({
               </button>
             </div>
           </div>
-          
+
           <div className="mt-3 pt-3 border-t border-blue-100">
             <span className="text-xs text-blue-700 font-medium bg-blue-100 px-2 py-1 rounded-full">
               {filterStatus}
@@ -113,7 +186,7 @@ const FiltersAndActions = ({
               <option value="approved">Approved</option>
               <option value="processed">Processed</option>
             </select>
-            
+
             <div className="relative flex-1 max-w-xs">
               <input
                 type="text"
@@ -127,7 +200,7 @@ const FiltersAndActions = ({
               </div>
             </div>
           </div>
-          
+
           <div className="flex space-x-3">
             <button
               onClick={processAllApproved}

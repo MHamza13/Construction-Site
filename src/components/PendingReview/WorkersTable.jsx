@@ -7,7 +7,7 @@ const WorkersTable = ({
   viewDetails,
   processInvoice,
 }) => {
-  // Format data from your JSON structure
+  // Format data from your JSON structure 
   const formatWorkerData = (worker) => ({
     id: worker.WorkerID,
     name: worker.Worker ? worker.Worker.trim() : 'Unknown', // Handle null/undefined names
@@ -37,7 +37,7 @@ const WorkersTable = ({
   return (
     <div className="bg-white rounded-xl max-w-full shadow-lg border border-gray-100 overflow-hidden">
       {/* Desktop Table View */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block w-[163vh]">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gradient-to-r from-slate-800 to-slate-900">

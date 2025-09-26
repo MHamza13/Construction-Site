@@ -2,12 +2,12 @@ import React from "react";
 
 const Banner = ({ title, subtitle, breadcrumb }) => {
   return (
-    <div className="text-dark ">
+    <div className="bg-white px-4 py-3 shadow-sm border-b border-gray-200 mb-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         {/* Title + Subtitle */}
         <div>
           {title && (
-            <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+            <h1 className="text-xl font-bold tracking-tight">{title}</h1>
           )}
           {subtitle && <p className="text-sm text-gray-600 mt-1">{subtitle}</p>}
         </div>

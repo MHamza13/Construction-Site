@@ -11,19 +11,30 @@ import {
   Clock,
 } from "lucide-react";
 import { fetchWorkers } from "@/redux/worker/WorkerSlice";
-import { createSubtask } from "@/redux/subTask/SubTaskSlice";
 
 export default function AddWorkPackagePage({
   onCancel,
   taskId,
   assignedUserIds = [],
+  onSubmitWorkPackage,
+  subtask = null,
+  mode = "create",
+  phaseId,
 }) {
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [priority, setPriority] = useState("Medium");
-  const [status, setStatus] = useState("Not Started");
-  const [dueDate, setDueDate] = useState("");
-  const [workers, setWorkers] = useState([]);
+  const [name, setName] = useState(subtask?.title || "");
+  const [desc, setDesc] = useState(subtask?.description || "");
+  const [priority, setPriority] = useState(subtask?.priority || "Medium");
+  const [status, setStatus] = useState(subtask?.status || "Not Started");
+  const [dueDate, setDueDate] = useState(
+    subtask?.dueDate
+      ? new Date(subtask.dueDate).toISOString().split("T")[0]
+      : ""
+  );
+  const [workers, setWorkers] = useState(
+    subtask?.workerAssignIds?.length > 0
+      ? subtask.workerAssignIds.map((id) => ({ id })) // Simplified, adjust based on worker data
+      : []
+  );
 
   const dispatch = useDispatch();
   const allWorkers = useSelector((state) => state.workers?.items ?? []);
@@ -46,11 +57,16 @@ export default function AddWorkPackagePage({
     });
   }, [allWorkers, assignedUserIds]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
 
-    const payload = {
-      parentTaskId: taskId,
+    if (!name.trim()) {
+      console.error("Subtask name is required!");
+      return;
+    }
+
+    // Common payload
+    let payload = {
       title: name,
       description: desc,
       dueDate: dueDate ? new Date(dueDate).toISOString() : null,
@@ -59,39 +75,60 @@ export default function AddWorkPackagePage({
       workerAssignIds: workers.length > 0 ? [getWorkerId(workers[0])] : [],
     };
 
-    try {
-      await dispatch(createSubtask({ taskId, subtaskData: payload })).unwrap();
+    // If edit mode → include subTaskId
+    if (mode === "edit" && subtask?.id) {
+      payload = {
+        subTaskId: subtask.id,
+        ...payload,
+      };
+    }
+
+    console.log(
+      `${mode === "edit" ? "Updating" : "Creating"} subtask:`,
+      payload
+    );
+
+    if (onSubmitWorkPackage && typeof onSubmitWorkPackage === "function") {
+      onSubmitWorkPackage(payload);
+    } else {
+      console.error("onSubmitWorkPackage prop missing or not a function!");
+      return;
+    }
+
+    if (mode === "create") {
       setName("");
       setDesc("");
       setPriority("Medium");
-      setStatus("Not Started");
+      setStatus("NotStarted");
       setDueDate("");
       setWorkers([]);
-      onCancel && onCancel();
-    } catch (err) {
-      console.error("Failed to create subtask:", err);
+    }
+
+    if (onCancel && typeof onCancel === "function") {
+      onCancel();
     }
   };
-
+  
   return (
     <div className="w-full mx-auto relative">
-      {/* Background Pattern */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 to-indigo-50/30 rounded-2xl -z-10"></div>
-
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Main Content - Side by Side Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Side - Form Fields */}
           <div className="space-y-6">
-            {/* Subtask Information Section */}
             <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-xl border border-gray-200 p-5 shadow-sm">
               <div className="flex items-center space-x-3 mb-5">
                 <div className="p-2 bg-blue-100 rounded-lg shadow-sm">
                   <ClipboardList className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Subtask Information</h3>
-                  <p className="text-gray-600 text-sm">Enter the essential details for your subtask</p>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Subtask Information
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {mode === "edit"
+                      ? "Update the subtask details"
+                      : "Enter the essential details for your subtask"}
+                  </p>
                 </div>
               </div>
               <div className="space-y-5">
@@ -103,7 +140,6 @@ export default function AddWorkPackagePage({
                   onChange={(e) => setName(e.target.value)}
                   icon={<ClipboardList />}
                 />
-
                 <TextAreaField
                   id="description"
                   label="Description"
@@ -112,7 +148,6 @@ export default function AddWorkPackagePage({
                   onChange={(e) => setDesc(e.target.value)}
                   icon={<FileText />}
                 />
-
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Due Date
@@ -131,18 +166,19 @@ export default function AddWorkPackagePage({
               </div>
             </div>
           </div>
-
-          {/* Right Side - Subtask Details and Workers Assignment */}
           <div className="space-y-6">
-            {/* Subtask Details Section */}
             <div className="bg-gradient-to-br from-green-50 to-emerald-50/30 rounded-xl border border-gray-200 p-5 shadow-sm">
               <div className="flex items-center space-x-3 mb-5">
                 <div className="p-2 bg-green-100 rounded-lg shadow-sm">
                   <Flag className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Subtask Details</h3>
-                  <p className="text-gray-600 text-sm">Set the subtask priority and status</p>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Subtask Details
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Set the subtask priority and status
+                  </p>
                 </div>
               </div>
               <div className="space-y-5">
@@ -164,7 +200,6 @@ export default function AddWorkPackagePage({
                     </select>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Status
@@ -185,28 +220,30 @@ export default function AddWorkPackagePage({
                 </div>
               </div>
             </div>
-
-            {/* Workers Assignment Section */}
             <div className="bg-gradient-to-br from-purple-50 to-indigo-50/30 rounded-xl border border-gray-200 p-5 shadow-sm">
               <div className="flex items-center space-x-3 mb-5">
                 <div className="p-2 bg-purple-100 rounded-lg shadow-sm">
                   <Users className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Assign Worker</h3>
-                  <p className="text-gray-600 text-sm">Select a worker for this subtask</p>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Assign Worker
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Select a worker for this subtask
+                  </p>
                 </div>
               </div>
-              
               {loading && (
-                <div className="text-sm text-gray-500 mb-3">Loading workers...</div>
+                <div className="text-sm text-gray-500 mb-3">
+                  Loading workers...
+                </div>
               )}
               {error && (
                 <div className="text-sm text-red-500 mb-3">
                   Failed to load workers: {String(error)}
                 </div>
               )}
-
               {availableWorkers.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {availableWorkers.map((w) => {
@@ -216,7 +253,9 @@ export default function AddWorkPackagePage({
                       w?.name ||
                       "Unnamed";
                     const role = w?.specializationName || "Worker";
-                    const isSelected = workers.some((wk) => getWorkerId(wk) === wid);
+                    const isSelected = workers.some(
+                      (wk) => getWorkerId(wk) === wid
+                    );
 
                     return (
                       <label
@@ -234,16 +273,12 @@ export default function AddWorkPackagePage({
                           onChange={() => setWorkers([w])}
                           className="sr-only"
                         />
-                        
                         <div className="flex items-start space-x-3">
-                          {/* Profile Image */}
                           <div className="flex-shrink-0">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                               <Users className="w-5 h-5 text-white" />
                             </div>
                           </div>
-
-                          {/* Worker Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <h4 className="font-medium text-gray-900 truncate text-sm">
@@ -253,19 +288,24 @@ export default function AddWorkPackagePage({
                                 {role}
                               </span>
                             </div>
-                            
                             <div className="mt-2 flex items-center text-xs text-gray-500">
                               <Clock className="w-3.5 h-3.5 mr-1.5 text-gray-400" />
                               <span>Available</span>
                             </div>
                           </div>
-
-                          {/* Selection Indicator */}
                           {isSelected && (
                             <div className="flex-shrink-0">
                               <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                <svg
+                                  className="w-3 h-3 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
                                 </svg>
                               </div>
                             </div>
@@ -290,7 +330,6 @@ export default function AddWorkPackagePage({
                   </p>
                 </div>
               )}
-
               {workers.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <p className="text-sm font-medium text-gray-700 mb-2">
@@ -332,12 +371,14 @@ export default function AddWorkPackagePage({
             </div>
           </div>
         </div>
-
-        {/* Action Buttons */}
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-6 border-t border-gray-200">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              if (onCancel && typeof onCancel === "function") {
+                onCancel();
+              }
+            }}
             className="px-6 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 flex items-center justify-center"
           >
             Cancel
@@ -347,7 +388,7 @@ export default function AddWorkPackagePage({
             disabled={!name.trim()}
             className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            Create Subtask
+            {mode === "edit" ? "Update Subtask" : "Create Subtask"}
           </button>
         </div>
       </form>
@@ -358,10 +399,7 @@ export default function AddWorkPackagePage({
 function InputField({ id, label, placeholder, value, onChange, icon }) {
   return (
     <div className="space-y-2">
-      <label
-        htmlFor={id}
-        className="block text-sm font-semibold text-gray-700"
-      >
+      <label htmlFor={id} className="block text-sm font-semibold text-gray-700">
         {label}
       </label>
       <div className="relative group">
@@ -382,24 +420,16 @@ function InputField({ id, label, placeholder, value, onChange, icon }) {
   );
 }
 
-function TextAreaField({
-  id,
-  label,
-  placeholder,
-  value,
-  onChange,
-  icon,
-}) {
+function TextAreaField({ id, label, placeholder, value, onChange, icon }) {
   return (
     <div className="space-y-2">
-      <label
-        htmlFor={id}
-        className="block text-sm font-semibold text-gray-700"
-      >
+      <label htmlFor={id} className="block text-sm font-semibold text-gray-700">
         {label}
       </label>
       <div className="relative group">
-        <span className="absolute top-3 left-3 text-gray-400 group-focus-within:text-blue-500 transition-colors">{icon}</span>
+        <span className="absolute top-3 left-3 text-gray-400 group-focus-within:text-blue-500 transition-colors">
+          {icon}
+        </span>
         <textarea
           id={id}
           name={id}

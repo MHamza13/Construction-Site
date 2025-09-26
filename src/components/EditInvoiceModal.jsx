@@ -2,7 +2,17 @@
 import { useState, useEffect } from "react";
 import { projects } from "@/data/projects";
 import workers from "@/data/workers.json";
-import { X, User, Calendar, Clock, Briefcase, DollarSign, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import {
+  X,
+  User,
+  Calendar,
+  Clock,
+  Briefcase,
+  DollarSign,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 
 export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
   const [formData, setFormData] = useState({
@@ -24,7 +34,9 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
 
   useEffect(() => {
     if (invoice) {
-      const [regular, overtime] = invoice.hours.split(" + ");
+      const [regular, overtime] = invoice.hours
+        ? invoice.hours.split(" + ")
+        : ["", ""];
       const regularHours = regular ? parseFloat(regular.replace("h", "")) : "";
       const overtimeHours = overtime
         ? parseFloat(overtime.replace("h OT", ""))
@@ -42,7 +54,7 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
         dailyWage: invoice.amount?.daily || "",
         extraHoursAmount: invoice.amount?.extraHours
           ? parseFloat(
-              invoice.amount.extraHours.split(" = ")[1].replace("$", "")
+              invoice.amount.extraHours.split(" = ")[1]?.replace("$", "") || 0
             )
           : "",
         clientAdjust: invoice.amount?.adjust || "",
@@ -97,22 +109,22 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
         : `${formData.regularHours}h`,
       projects: formData.project,
       amount: {
-        daily: parseFloat(formData.dailyWage),
+        daily: parseFloat(formData.dailyWage) || 0,
         extraHours: formData.extraHoursAmount
           ? `${formData.overtimeHours} × $${(
-              formData.extraHoursAmount / (formData.overtimeHours || 1)
+              (formData.extraHoursAmount || 0) / (formData.overtimeHours || 1)
             ).toFixed(2)} = $${formData.extraHoursAmount}`
           : "",
         calculated:
-          parseFloat(formData.dailyWage) +
+          (parseFloat(formData.dailyWage) || 0) +
           (parseFloat(formData.extraHoursAmount) || 0),
         adjust:
           parseFloat(formData.clientAdjust) ||
-          parseFloat(formData.dailyWage) +
+          (parseFloat(formData.dailyWage) || 0) +
             (parseFloat(formData.extraHoursAmount) || 0),
         final:
           parseFloat(formData.clientAdjust) ||
-          parseFloat(formData.dailyWage) +
+          (parseFloat(formData.dailyWage) || 0) +
             (parseFloat(formData.extraHoursAmount) || 0),
       },
       approval: formData.approval,
@@ -146,7 +158,9 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Edit Invoice</h2>
-              <p className="text-blue-100 text-sm">Update invoice details - ID: {invoice.id}</p>
+              <p className="text-blue-100 text-sm">
+                Update invoice details - ID: {invoice.id}
+              </p>
             </div>
           </div>
           <button
@@ -174,8 +188,12 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
                         <User className="h-5 w-5 text-blue-600" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">Basic Information</h3>
-                        <p className="text-gray-600 text-sm">Worker and date details</p>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          Basic Information
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Worker and date details
+                        </p>
                       </div>
                     </div>
 
@@ -276,8 +294,12 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
                         <Clock className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">Working Hours</h3>
-                        <p className="text-gray-600 text-sm">Regular and overtime hours</p>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          Working Hours
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Regular and overtime hours
+                        </p>
                       </div>
                     </div>
 
@@ -342,8 +364,12 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
                         <DollarSign className="h-5 w-5 text-amber-600" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">Financial Details</h3>
-                        <p className="text-gray-600 text-sm">Wages and adjustments</p>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          Financial Details
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Wages and adjustments
+                        </p>
                       </div>
                     </div>
 
@@ -424,8 +450,12 @@ export default function EditInvoiceModal({ isOpen, onClose, invoice, onSave }) {
                         <FileText className="h-5 w-5 text-purple-600" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">Additional Information</h3>
-                        <p className="text-gray-600 text-sm">Notes and remarks</p>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          Additional Information
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Notes and remarks
+                        </p>
                       </div>
                     </div>
 

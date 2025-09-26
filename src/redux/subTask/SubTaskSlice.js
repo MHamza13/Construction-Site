@@ -67,6 +67,45 @@ export const fetchSubtaskById = createAsyncThunk(
   }
 );
 
+// ✅ Update subtask
+export const updateSubtask = createAsyncThunk(
+  "subtasks/updateSubtask",
+  async ({ taskId, subTaskId, subtaskData }, { rejectWithValue, getState }) => {
+    try {
+      const res = await axios.put(
+        `${SUBTASK_API_URL}/subtasks/${subTaskId}`,
+        subtaskData,
+        getAuthHeader(getState)
+      );
+      return { taskId, subTaskId, subtask: res.data }; 
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
+// ✅ Delete subtask (admin only)
+export const deleteSubtask = createAsyncThunk(
+  "subtasks/deleteSubtask",
+  async ({ subTaskId }, { rejectWithValue, getState }) => {
+    const role = getState().auth?.user.role;
+
+    console.log("User role:", role);
+    if (role !== "Admin") {
+      return rejectWithValue("Only admins can delete subtasksssss");
+    }
+    try {
+      await axios.delete(
+        `${SUBTASK_API_URL}/subtasks/${subTaskId}`,
+        getAuthHeader(getState)
+      );
+      return { subTaskId };
+    } catch (err) {
+      return rejectWithValue(err.response?.data || err.message);
+    }
+  }
+);
+
 /* ===========================================================
    SUBTASK SLICE
 =========================================================== */
@@ -121,6 +160,48 @@ const subtaskSlice = createSlice({
         state.currentSubtask = action.payload;
       })
       .addCase(fetchSubtaskById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      .addCase(updateSubtask.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateSubtask.fulfilled, (state, action) => {
+        state.loading = false;
+        const { subTaskId, subtask } = action.payload;
+        Object.keys(state.subtasks).forEach((taskId) => {
+          state.subtasks[taskId] = state.subtasks[taskId].map((st) =>
+            st.id === subTaskId ? { ...st, ...subtask } : st
+          );
+        });
+        if (state.currentSubtask?.id === subTaskId) {
+          state.currentSubtask = { ...state.currentSubtask, ...subtask };
+        }
+      })
+      .addCase(updateSubtask.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      .addCase(deleteSubtask.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteSubtask.fulfilled, (state, action) => {
+        state.loading = false;
+        const { taskId, subTaskId } = action.payload;
+        if (state.subtasks[taskId]) {
+          state.subtasks[taskId] = state.subtasks[taskId].filter(
+            (subtask) => subtask.id !== subTaskId
+          );
+        }
+        if (state.currentSubtask?.id === subTaskId) {
+          state.currentSubtask = null;
+        }
+      })
+      .addCase(deleteSubtask.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

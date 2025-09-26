@@ -1,5 +1,6 @@
+// BulkPaymentModal.jsx
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AiOutlineClose,
   AiOutlineUpload,
@@ -19,14 +20,74 @@ export default function BulkPaymentModal({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!isOpen || invoices.length === 0) return null;
+  // Log props for debugging
+  console.log(
+    "BulkPaymentModal rendered, isOpen:",
+    isOpen,
+    "invoices:",
+    invoices,
+    "worker:",
+    worker
+  );
 
-  const totalAmount = invoices.reduce((sum, inv) => sum + inv.amount.final, 0);
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      console.log("BulkPaymentModal closed, resetting state");
+      setPaymentMethod("Bank Transfer");
+      setReceipt(null);
+      setNotes("");
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
 
-  const handleFileChange = (e) => setReceipt(e.target.files[0]);
+  // Early return if modal is not open or no invoices
+  if (!isOpen || invoices.length === 0) {
+    console.log("BulkPaymentModal not rendered: isOpen or invoices invalid");
+    return null;
+  }
+
+  // Validate worker prop
+  const isWorkerValid = worker && worker.id && worker.name;
+  if (!isWorkerValid) {
+    console.warn("Invalid worker prop:", worker);
+  }
+
+  // Calculate total amount
+  const totalAmount = invoices.reduce(
+    (sum, inv) => sum + (inv.totals?.totalPay || 0),
+    0
+  );
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    console.log("File selected:", file?.name);
+    setReceipt(file);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
+    console.log(
+      "Submitting bulk payment, paymentMethod:",
+      paymentMethod,
+      "receipt:",
+      receipt?.name,
+      "notes:",
+      notes,
+      "worker:",
+      worker
+    );
+    if (totalAmount === 0) {
+      alert("⚠️ Cannot process payment with zero total amount.");
+      return;
+    }
+    if (!isWorkerValid) {
+      alert(
+        "⚠️ Invalid worker data. Please ensure worker details are provided."
+      );
+      return;
+    }
     setIsSubmitting(true);
     setTimeout(() => {
       onConfirm({
@@ -34,7 +95,7 @@ export default function BulkPaymentModal({
         invoices,
         totalAmount,
         paymentMethod,
-        receipt,
+        receipt: receipt ? receipt.name : null,
         notes,
         paymentDate: new Date().toLocaleDateString(),
       });
@@ -64,15 +125,17 @@ export default function BulkPaymentModal({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-md shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative custom-scrollbar">
-        {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            console.log("Close button clicked");
+            onClose();
+          }}
           className="absolute top-4 cursor-pointer right-4 w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-600 hover:text-gray-800 transition"
         >
           <AiOutlineClose className="w-5 h-5" />
         </button>
 
-        {/* Header */}
         <div className="px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-md">
           <h2 className="text-2xl font-bold text-gray-900 mb-1">
             Bulk Payment Processing
@@ -82,8 +145,7 @@ export default function BulkPaymentModal({
           </p>
         </div>
 
-        <form className="px-8 py-6 space-y-6">
-          {/* Payment Summary */}
+        <form className="px-8 py-6 space-y-6" onSubmit={handleSubmit}>
           <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-md p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-emerald-800 mb-4 flex items-center gap-2">
               <AiOutlineCheck className="w-5 h-5 text-emerald-600" />
@@ -94,13 +156,13 @@ export default function BulkPaymentModal({
                 <div className="flex justify-between text-gray-700">
                   <span>Worker:</span>
                   <span className="font-semibold text-gray-900">
-                    {worker?.name}
+                    {worker?.name || "Unknown"}
                   </span>
                 </div>
                 <div className="flex justify-between text-gray-700">
-                  <span>Employee ID:</span>
+                  <span>Worker ID:</span>
                   <span className="font-semibold text-gray-900">
-                    {worker?.employeeId}
+                    #{worker?.id || "N/A"}
                   </span>
                 </div>
               </div>
@@ -129,7 +191,6 @@ export default function BulkPaymentModal({
             </div>
           </div>
 
-          {/* Invoice Details */}
           <div className="bg-gray-50 rounded-md p-6 shadow-sm max-h-48 overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <FaMoneyCheckAlt className="w-5 h-5 text-gray-600" /> Invoice
@@ -151,21 +212,27 @@ export default function BulkPaymentModal({
                       <div className="font-semibold text-gray-900">
                         Invoice #{inv.id}
                       </div>
-                      <div className="text-sm text-gray-500">{inv.date}</div>
+                      <div className="text-sm text-gray-500">
+                        {inv.payPeriod}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-blue-700">
-                      ${inv.amount.final.toFixed(2)}
+                      $
+                      {inv.totals?.totalPay
+                        ? inv.totals.totalPay.toFixed(2)
+                        : "N/A"}
                     </div>
-                    <div className="text-xs text-gray-400">{inv.hours}</div>
+                    <div className="text-xs text-gray-400">
+                      {inv.totals?.totalHours || 0}h
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Payment Method */}
           <div>
             <label className="block text-lg font-semibold text-gray-800 mb-4">
               Payment Method
@@ -184,7 +251,10 @@ export default function BulkPaymentModal({
                     type="radio"
                     value={method.label}
                     checked={paymentMethod === method.label}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    onChange={(e) => {
+                      console.log("Payment method selected:", e.target.value);
+                      setPaymentMethod(e.target.value);
+                    }}
                     className="sr-only"
                   />
                   <div className="text-2xl mb-2">{method.icon}</div>
@@ -202,7 +272,6 @@ export default function BulkPaymentModal({
             </div>
           </div>
 
-          {/* Receipt Upload */}
           <div>
             <label className="block text-lg font-semibold text-gray-800 mb-3">
               Payment Receipt
@@ -226,25 +295,30 @@ export default function BulkPaymentModal({
             </div>
           </div>
 
-          {/* Notes */}
           <div>
             <label className="block text-lg font-semibold text-gray-800 mb-3">
               Payment Notes (Optional)
             </label>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => {
+                console.log("Notes updated:", e.target.value);
+                setNotes(e.target.value);
+              }}
               className="w-full border-2 border-gray-200 rounded-md p-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none"
               rows="4"
               placeholder="Add any notes about this bulk payment..."
             />
           </div>
 
-          {/* Footer Actions */}
           <div className="flex justify-end gap-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log("Cancel button clicked");
+                onClose();
+              }}
               disabled={isSubmitting}
               className="px-6 py-3 rounded-md cursor-pointer bg-white border-2 border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-300 transition disabled:opacity-50"
             >
@@ -252,8 +326,9 @@ export default function BulkPaymentModal({
             </button>
             <button
               type="submit"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting || !receipt || totalAmount === 0 || !isWorkerValid
+              }
               className="px-8 py-3 rounded-md cursor-pointer bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold hover:from-emerald-700 hover:to-green-700 transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
             >
               {isSubmitting ? "Processing..." : "Process Bulk Payment"}

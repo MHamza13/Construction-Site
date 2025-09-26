@@ -6,6 +6,8 @@ import workersReducer from "./worker/WorkerSlice";
 import taskReducer from "./task/TaskSlice";
 import subtaskReducer from "./subTask/SubTaskSlice";
 import invoiceReducer from "./invoice/InvoiceSlice";
+import payrollReducer from "./payRole/PayRole";
+import shiftsReducer from "./shift/ShiftSlice";
 
 import {
   persistStore,
@@ -28,7 +30,9 @@ const rootReducer = combineReducers({
   workers: workersReducer,
   tasks: taskReducer,
   subtasks: subtaskReducer,
-  invoices: invoiceReducer, 
+  invoices: invoiceReducer,
+  payroll: payrollReducer,
+  shifts: shiftsReducer,
 });
 
 // Persist config

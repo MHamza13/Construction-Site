@@ -9,6 +9,11 @@ import {
   X,
   Paperclip,
   Circle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Flag,
+  ListChecks,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import EmojiPicker from "emoji-picker-react";
@@ -51,7 +56,6 @@ export const formatMessageDate = (date) => {
   if (isYesterday) return "Yesterday";
 
   return msgDate.toLocaleDateString(undefined, {
-    weekday: "long",
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -66,6 +70,42 @@ export const formatTime = (date) => {
   });
 };
 
+export const formatTaskDate = (dateString) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const getStatusStyles = (status) => {
+  switch (status?.toLowerCase()) {
+    case "completed":
+      return "bg-green-100 text-green-700 border-green-200";
+    case "in_progress":
+      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    case "not_started":
+      return "bg-gray-100 text-gray-700 border-gray-200";
+    default:
+      return "bg-gray-100 text-gray-700 border-gray-200";
+  }
+};
+
+const getPriorityStyles = (priority) => {
+  switch (priority?.toLowerCase()) {
+    case "high":
+      return "bg-red-100 text-red-700 border-red-200";
+    case "medium":
+      return "bg-orange-100 text-orange-700 border-orange-200";
+    case "low":
+      return "bg-blue-100 text-blue-700 border-blue-200";
+    default:
+      return "bg-gray-100 text-gray-700 border-gray-200";
+  }
+};
+
 const WorkerChat = () => {
   const dispatch = useDispatch();
   const { items: workers } = useSelector((state) => state.workers);
@@ -78,10 +118,8 @@ const WorkerChat = () => {
     token: loginData?.token || "",
   };
 
-  // Moved state management inside the component
   const [unreadCount, setUnreadCount] = useState({});
   const [activeChat, setActiveChat] = useState(null);
-
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -95,6 +133,7 @@ const WorkerChat = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [mediaList, setMediaList] = useState([]);
+  const [showSubtasks, setShowSubtasks] = useState({});
 
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -106,7 +145,6 @@ const WorkerChat = () => {
     dispatch(fetchWorkers());
   }, [dispatch]);
 
-  // Fetch status of all users
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users"), (snapshot) => {
       const statusMap = {};
@@ -118,7 +156,6 @@ const WorkerChat = () => {
     return () => unsub();
   }, []);
 
-  // Fetch last message preview and unread count for sidebar
   useEffect(() => {
     const unsubs = workers.map((w) => {
       const chatId = generateChatId(w.id);
@@ -134,7 +171,6 @@ const WorkerChat = () => {
             [w.id]: { ...lastMsg, createdAt: lastMsg.createdAt?.toDate() },
           }));
 
-          // Calculate total unread count across all chats
           const totalUnread = snap.docs.reduce((count, doc) => {
             const msg = doc.data();
             return msg.senderId !== user.userId && !msg.read
@@ -160,7 +196,6 @@ const WorkerChat = () => {
     return () => unsubs.forEach((u) => u());
   }, [workers, user.userId]);
 
-  // Fetch messages for active chat and mark as read
   useEffect(() => {
     if (!activeChat) {
       setMessages([]);
@@ -176,10 +211,10 @@ const WorkerChat = () => {
       const msgs = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
       }));
       setMessages(msgs);
 
-      // Mark all messages as read when chat is opened
       const unreadMessages = msgs.filter(
         (m) => m.senderId !== user.userId && !m.read
       );
@@ -193,7 +228,6 @@ const WorkerChat = () => {
     return () => unsubscribe();
   }, [activeChat, user.userId]);
 
-  // Auto scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -234,13 +268,15 @@ const WorkerChat = () => {
           await ensureChatExists(chatId, user, receiver);
           await addDoc(collection(db, "chats", chatId, "messages"), {
             content: url,
-            type: file.type.startsWith("image/")
+            type: file?.type?.startsWith("image/")
               ? "image"
-              : file.type.startsWith("video/")
-                ? "video"
-                : file.type.startsWith("audio/")
-                  ? "audio"
-                  : "document",
+              : file?.type?.startsWith("video/")
+              ? "video"
+              : file?.type?.startsWith("audio/")
+              ? "audio"
+              : file?.type
+              ? "document"
+              : "task_card",
             fileName,
             senderId: user.userId,
             senderName: user.name,
@@ -311,7 +347,6 @@ const WorkerChat = () => {
     }
   };
 
-  // ---------- Voice recording ----------
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -375,10 +410,10 @@ const WorkerChat = () => {
       fileType: file.type.startsWith("image/")
         ? "image"
         : file.type.startsWith("video/")
-          ? "video"
-          : file.type.startsWith("audio/")
-            ? "audio"
-            : "document",
+        ? "video"
+        : file.type.startsWith("audio/")
+        ? "audio"
+        : "document",
       fileName: file.name,
     }));
     setFilePreviews((p) => [...p, ...previews]);
@@ -409,19 +444,23 @@ const WorkerChat = () => {
     }
   };
 
+  const toggleSubtasks = (messageId) => {
+    setShowSubtasks((prev) => ({
+      ...prev,
+      [messageId]: !prev[messageId],
+    }));
+  };
+
   const selectedWorker = workers.find((w) => w.id === activeChat);
 
   const groupedMessages = messages.reduce((groups, msg) => {
-    const date = msg.createdAt?.toDate
-      ? msg.createdAt.toDate()
-      : msg.createdAt || new Date();
+    const date = msg.createdAt || new Date();
     const label = formatMessageDate(date);
     if (!groups[label]) groups[label] = [];
     groups[label].push(msg);
     return groups;
   }, {});
 
-  // Sort workers by last message time
   const sortedWorkers = [...workers].sort((a, b) => {
     const msgA = lastMessages[a.id]?.createdAt || 0;
     const msgB = lastMessages[b.id]?.createdAt || 0;
@@ -435,13 +474,25 @@ const WorkerChat = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 rounded-lg shadow-sm">
-              <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              <svg
+                className="h-5 w-5 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
               </svg>
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Team Chat</h3>
-              <p className="text-gray-600 text-sm">Select a team member to start chatting</p>
+              <p className="text-gray-600 text-sm">
+                Select a team member to start chatting
+              </p>
             </div>
           </div>
         </div>
@@ -456,10 +507,11 @@ const WorkerChat = () => {
               <div
                 key={w.id}
                 onClick={() => setActiveChat(w.id)}
-                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 relative border-2 ${activeChat === w.id
+                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 relative border-2 ${
+                  activeChat === w.id
                     ? "bg-blue-50 border-blue-200 shadow-sm"
                     : "border-transparent hover:bg-white hover:border-gray-200 hover:shadow-sm"
-                  }`}
+                }`}
               >
                 <div className="relative">
                   <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
@@ -479,8 +531,9 @@ const WorkerChat = () => {
                     </span>
                   </div>
                   <Circle
-                    className={`w-3 h-3 absolute -bottom-1 -right-1 ${userStatus[w.id] ? "text-green-500" : "text-gray-400"
-                      }`}
+                    className={`w-3 h-3 absolute -bottom-1 -right-1 ${
+                      userStatus[w.id] ? "text-green-500" : "text-gray-400"
+                    }`}
                     fill={userStatus[w.id] ? "green" : "gray"}
                   />
                 </div>
@@ -500,6 +553,8 @@ const WorkerChat = () => {
                       {lastMsg
                         ? lastMsg.type === "text"
                           ? lastMsg.content
+                          : lastMsg.type === "task_card"
+                          ? `[Task: ${lastMsg.content.project_name}]`
                           : `[${lastMsg.type}]`
                         : "No messages yet"}
                     </p>
@@ -544,10 +599,11 @@ const WorkerChat = () => {
                   </span>
                 </div>
                 <Circle
-                  className={`w-3 h-3 absolute -bottom-1 -right-1 ${userStatus[selectedWorker.id]
+                  className={`w-3 h-3 absolute -bottom-1 -right-1 ${
+                    userStatus[selectedWorker.id]
                       ? "text-green-500"
                       : "text-gray-400"
-                    }`}
+                  }`}
                   fill={userStatus[selectedWorker.id] ? "green" : "gray"}
                 />
               </div>
@@ -556,13 +612,19 @@ const WorkerChat = () => {
                   {selectedWorker.firstName} {selectedWorker.lastName}
                 </h2>
                 <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${userStatus[selectedWorker.id]
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-600"
-                    }`}>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      userStatus[selectedWorker.id]
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
                     <Circle
-                      className={`w-2 h-2 mr-1 ${userStatus[selectedWorker.id] ? "text-green-500" : "text-gray-400"
-                        }`}
+                      className={`w-2 h-2 mr-1 ${
+                        userStatus[selectedWorker.id]
+                          ? "text-green-500"
+                          : "text-gray-400"
+                      }`}
                       fill={userStatus[selectedWorker.id] ? "green" : "gray"}
                     />
                     {userStatus[selectedWorker.id] ? "Online" : "Offline"}
@@ -591,11 +653,12 @@ const WorkerChat = () => {
                     return (
                       <div
                         key={m.id}
-                        className={`flex items-end gap-2 mb-3 ${isSender ? "justify-end" : "justify-start"
-                          }`}
+                        className={`flex items-start gap-2 mb-3 ${
+                          isSender ? "justify-end" : "justify-start"
+                        }`}
                       >
                         {!isSender && (
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-200 flex items-center justify-center text-blue-700 text-sm">
+                          <div className="w-8 h-8 rounded-full mt-1 overflow-hidden bg-blue-200 flex items-center justify-center text-blue-700 text-sm">
                             {senderWorker.profilePictureUrl ? (
                               <img
                                 src={senderWorker.profilePictureUrl}
@@ -621,21 +684,12 @@ const WorkerChat = () => {
                           </div>
                         )}
                         <div
-                          className={`px-4 py-3 rounded-2xl max-w-md shadow-sm relative ${isSender
+                          className={`px-4 py-3 rounded-2xl max-w-md shadow-sm relative ${
+                            isSender
                               ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
                               : "bg-white text-gray-900 border border-gray-200"
-                            }`}
+                          }`}
                         >
-                          {/* Sender name + time */}
-                          {/* <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-semibold">
-                              {m.senderName || "Unknown"}
-                            </span>
-                            {m.createdAt && (
-                              <span className="text-[10px] opacity-70"></span>
-                            )}
-                          </div> */}
-
                           {/* Message content */}
                           {m.uploading ? (
                             <div className="flex items-center gap-2">
@@ -660,8 +714,9 @@ const WorkerChat = () => {
                                   <img
                                     src={m.content}
                                     alt={m.fileName || "Image"}
-                                    className={`rounded-md mb-2 max-w-full h-auto ${mediaLoaded[m.id] ? "block" : "hidden"
-                                      }`}
+                                    className={`rounded-md mb-2 max-w-full h-auto ${
+                                      mediaLoaded[m.id] ? "block" : "hidden"
+                                    }`}
                                     onLoad={() =>
                                       setMediaLoaded((prev) => ({
                                         ...prev,
@@ -690,8 +745,9 @@ const WorkerChat = () => {
                                   <video
                                     src={m.content}
                                     controls
-                                    className={`mb-2 max-w-full rounded-md ${mediaLoaded[m.id] ? "block" : "hidden"
-                                      }`}
+                                    className={`mb-2 max-w-full rounded-md ${
+                                      mediaLoaded[m.id] ? "block" : "hidden"
+                                    }`}
                                     onLoadedMetadata={() =>
                                       setMediaLoaded((prev) => ({
                                         ...prev,
@@ -738,16 +794,182 @@ const WorkerChat = () => {
                                 </a>
                               )}
                               {m.type === "text" && <p>{m.content}</p>}
+                              {m.type === "task_card" && m.content && (
+                                <div className="border rounded-md p-4 bg-white transition-shadow duration-200">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <h3 className="font-bold text-lg text-gray-900 line-clamp-1 pr-5">
+                                      {m.content.task_name || "Untitled Task"}
+                                    </h3>
+                                    <span
+                                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusStyles(
+                                        m.content.parent_status
+                                      )}`}
+                                    >
+                                      {m.content.parent_status || "Unknown"}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-3">
+                                    {m.content.task_description ||
+                                      "No description provided"}
+                                  </p>
+                                  <div className="space-y-2 mb-3">
+                                    <div className="flex justify-between items-center px-2 py-1 rounded-full text-xs font-medium">
+                                      <div className="flex items-center gap-1 text-gray-700">
+                                        <Clock className="w-4 h-4 text-gray-500" />
+                                        <span>Deadline:</span>
+                                      </div>
+
+                                      <div className="text-gray-900 font-medium">
+                                        {formatTaskDate(
+                                          m.content.task_deadline
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <span
+                                        className={`flex justify-between items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700`}
+                                      >
+                                        {/* Left side with icon + label */}
+                                        <div className="flex items-center gap-1">
+                                          <ListChecks className="w-4 h-4 text-gray-500" />
+                                          <span>Subtasks:</span>
+                                        </div>
+
+                                        {/* Right side count */}
+                                        <div className="font-semibold text-gray-900">
+                                          {
+                                            m.content.sub_tasks.filter(
+                                              (sub) =>
+                                                sub.status?.toLowerCase() ===
+                                                "completed"
+                                            ).length
+                                          }
+                                          /{m.content.sub_tasks?.length || 0}
+                                        </div>
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span
+                                        className={`flex justify-between items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityStyles(
+                                          m.content.task_priority
+                                        )}`}
+                                      >
+                                        <div className="flex items-center">
+                                          <Flag className="w-3 h-3 mr-1" />
+                                          Priority:
+                                        </div>
+                                        <div>
+                                          {m.content.task_priority || "Unknown"}
+                                        </div>
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {m.content.project_name && (
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      <strong>Project:</strong>{" "}
+                                      {m.content.project_name}
+                                    </p>
+                                  )}
+                                  {m.content.task_description && (
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      <strong>Description:</strong>{" "}
+                                      {m.content.task_description}
+                                    </p>
+                                  )}
+                                  {m.content.sub_tasks?.length > 0 && (
+                                    <div className="mt-3">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h4 className="text-sm font-semibold text-gray-700">
+                                          Subtasks ({m.content.sub_tasks.length}
+                                          )
+                                        </h4>
+                                        <button
+                                          onClick={() => toggleSubtasks(m.id)}
+                                          className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
+                                        >
+                                          {showSubtasks[m.id] ? (
+                                            <>
+                                              <ChevronUp className="w-4 h-4" />
+                                              Hide
+                                            </>
+                                          ) : (
+                                            <>
+                                              <ChevronDown className="w-4 h-4" />
+                                              Show
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                      {showSubtasks[m.id] && (
+                                        <ul className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                          {m.content.sub_tasks
+                                            .sort(
+                                              (a, b) =>
+                                                new Date(a.due_date) -
+                                                new Date(b.due_date)
+                                            )
+                                            .map((sub) => (
+                                              <li
+                                                key={sub.sub_task_id}
+                                                className="flex items-center justify-between border rounded-md p-2 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                              >
+                                                <div className="flex items-center gap-2">
+                                                  <span
+                                                    className="inline-block w-3 h-3 rounded-full"
+                                                    style={{
+                                                      backgroundColor:
+                                                        sub.color_code ||
+                                                        "#ccc",
+                                                    }}
+                                                  ></span>
+                                                  <span className="text-sm text-gray-800 truncate max-w-[200px]">
+                                                    {sub.title}
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-xs text-gray-500">
+                                                    {formatTaskDate(
+                                                      sub.due_date
+                                                    )}
+                                                  </span>
+                                                  <span
+                                                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusStyles(
+                                                      sub.status
+                                                    )}`}
+                                                  >
+                                                    {sub.status}
+                                                  </span>
+                                                  <span
+                                                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityStyles(
+                                                      sub.priority
+                                                    )}`}
+                                                  >
+                                                    {sub.priority}
+                                                  </span>
+                                                </div>
+                                              </li>
+                                            ))}
+                                        </ul>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {m.type === "task_card" && !m.content && (
+                                <p className="text-red-500 text-sm">
+                                  Error: Invalid task data
+                                </p>
+                              )}
                             </>
                           )}
 
                           {/* Sender name + time */}
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-semibold">
-                            </span>
+                          <div className="flex justify-between items-center mt-2">
+                            <span className="text-xs font-semibold"></span>
                             {m.createdAt && (
                               <span className="text-[10px] opacity-70">
-                                {formatTime(m.createdAt.toDate())}
+                                {formatTime(m.createdAt)}
                               </span>
                             )}
                           </div>
@@ -862,7 +1084,6 @@ const WorkerChat = () => {
                   disabled={isSending}
                 />
 
-                {/* Mic + Cancel */}
                 {isRecording ? (
                   <div className="flex items-center gap-2">
                     <button
@@ -892,10 +1113,11 @@ const WorkerChat = () => {
                   disabled={
                     isSending || (!input.trim() && filePreviews.length === 0)
                   }
-                  className={`p-3 rounded-lg transition-all duration-200 ${isSending || (!input.trim() && filePreviews.length === 0)
+                  className={`p-3 rounded-lg transition-all duration-200 ${
+                    isSending || (!input.trim() && filePreviews.length === 0)
                       ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                       : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-sm hover:shadow-md"
-                    }`}
+                  }`}
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -911,13 +1133,27 @@ const WorkerChat = () => {
             <div className="text-center">
               <div className="flex justify-center mb-4">
                 <div className="p-4 bg-blue-100 rounded-full">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <svg
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
                   </svg>
                 </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">Welcome to Team Chat</h3>
-              <p className="text-gray-500">Select a team member from the sidebar to start a conversation</p>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                Welcome to Team Chat
+              </h3>
+              <p className="text-gray-500">
+                Select a team member from the sidebar to start a conversation
+              </p>
             </div>
           </div>
         )}

@@ -1,55 +1,120 @@
 "use client";
-import { useState } from "react";
-import PhaseCard from "@/components/PhaseCard";
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import Swal from "sweetalert2";
-import { FaPlus } from "react-icons/fa";
-import { PlusIcon } from "lucide-react";
+import {
+  createSubtask,
+  deleteSubtask,
+  fetchSubtasks,
+  updateSubtask,
+  fetchSubtaskById,
+} from "@/redux/subTask/SubTaskSlice";
 import AddWorkPackagePage from "./addWorkPackage";
+import PhaseCard from "@/components/PhaseCard";
 
-// Trash icon component
-const TrashIcon = ({ className = "h-5 w-5 text-red-500" }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M10 7V4a1 1 0 011-1h2a1 1 0 011 1v3"
-    />
-  </svg>
-);
-
-export default function PhasesSection({
-  assignedUserIds = [],
-  initialPhases = [],
-  taskId,
-}) {
+const PhasesSection = ({ taskId, assignedUserIds, initialPhases = [] }) => {
+  const dispatch = useDispatch();
   const [phases, setPhases] = useState(initialPhases);
   const [isAddPhaseOpen, setIsAddPhaseOpen] = useState(false);
-  const [selectedPhase, setSelectedPhase] = useState(null); // for passing phase to popup
+  const [selectedPhase, setSelectedPhase] = useState(null);
+  const [selectedSubtask, setSelectedSubtask] = useState(null); // For editing
+  const [modalMode, setModalMode] = useState("create"); // "create" or "edit"
 
-  const toggleAddPhasePopup = (phase = null) => {
+  // Get subtasks from Redux store
+  const { loading, error, subtasks } = useSelector((state) => state.subtasks);
+
+  // Fetch subtasks on component mount
+  useEffect(() => {
+    if (taskId) {
+      console.log("Fetching subtasks for taskId:", taskId);
+      dispatch(fetchSubtasks(taskId));
+    }
+  }, [dispatch, taskId]);
+
+  // Update phases with fetched subtasks
+  useEffect(() => {
+    const subtaskList = Array.isArray(subtasks[taskId]) ? subtasks[taskId] : [];
+    console.log("Subtasks received:", subtaskList);
+    setPhases((prev) =>
+      prev.map((phase) => ({
+        ...phase,
+        workPackages:
+          subtaskList.filter((subtask) => subtask.phaseId === phase.id) || [],
+      }))
+    );
+  }, [subtasks, taskId]);
+
+  const toggleAddPhasePopup = (
+    phase = null,
+    subtask = null,
+    mode = "create"
+  ) => {
     setSelectedPhase(phase);
+    setSelectedSubtask(subtask);
+    setModalMode(mode);
     setIsAddPhaseOpen(!isAddPhaseOpen);
   };
 
-  const handleAddPhase = (newPhase) => {
-    setPhases([...phases, newPhase]);
-    setIsAddPhaseOpen(false);
+  // Handle work package submit (create or update)
+  const handleSubmitWorkPackage = async (subtaskData) => {
+    try {
+      if (!subtaskData || !taskId) {
+        throw new Error("Missing required data");
+      }
+
+      const payload = {
+        ...subtaskData,
+        parentTaskId: taskId,
+        phaseId: selectedPhase?.id,
+      };
+
+      console.log("Submitting subtask with payload:", payload);
+
+      let result;
+      if (modalMode === "edit" && selectedSubtask?.id) {
+        // Update existing subtask
+        result = await dispatch(
+          updateSubtask({ subTaskId: selectedSubtask.id, subtaskData: payload })
+        ).unwrap();
+        console.log("Update subtask response:", result);
+        Swal.fire("Success!", "Work package updated successfully.", "success");
+      } else {
+        // Create new subtask
+        result = await dispatch(
+          createSubtask({ taskId, subtaskData: payload })
+        ).unwrap();
+        console.log("Create subtask response:", result);
+        Swal.fire("Success!", "Work package created successfully.", "success");
+      }
+
+      // Refresh subtasks
+      await dispatch(fetchSubtasks(taskId));
+
+      setIsAddPhaseOpen(false);
+      setSelectedSubtask(null);
+      setModalMode("create");
+    } catch (err) {
+      console.error("Subtask error:", err);
+      Swal.fire(
+        "Error",
+        `Failed to ${
+          modalMode === "edit" ? "update" : "create"
+        } work package: ${
+          typeof err === "string" ? err : err.message || "An error occurred"
+        }`,
+        "error"
+      );
+    }
   };
 
+  // Delete Phase
   const handleDeletePhase = async (phaseId) => {
     const result = await Swal.fire({
       title: "Delete this phase?",
       text: "This action cannot be undone!",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Yes",
+      confirmButtonText: "Yes, delete it",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#3085d6",
       cancelButtonColor: "#d33",
@@ -61,28 +126,52 @@ export default function PhasesSection({
     }
   };
 
+  // Delete Work Package
   const handleDeleteWorkPackage = async (phaseId, pkgId) => {
     const result = await Swal.fire({
       title: "Delete this work package?",
+      text: "This action cannot be undone!",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Yes",
+      confirmButtonText: "Yes, delete it",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#3085d6",
       cancelButtonColor: "#d33",
+      showLoaderOnConfirm: true,
+      preConfirm: async () => {
+        try {
+          await dispatch(deleteSubtask({ subTaskId: pkgId })).unwrap();
+          await dispatch(fetchSubtasks(taskId));
+
+          // Update local state
+          setPhases((prev) =>
+            prev.map((phase) =>
+              phase.id === phaseId
+                ? {
+                    ...phase,
+                    workPackages: phase.workPackages.filter(
+                      (p) => p.id !== pkgId
+                    ),
+                  }
+                : phase
+            )
+          );
+
+          return true;
+        } catch (err) {
+          Swal.showValidationMessage(
+            `Error: ${
+              typeof err === "string"
+                ? err
+                : err.message || "Failed to delete work package"
+            }`
+          );
+          return false;
+        }
+      },
     });
 
     if (result.isConfirmed) {
-      setPhases((prev) =>
-        prev.map((phase) =>
-          phase.id === phaseId
-            ? {
-                ...phase,
-                workPackages: phase.workPackages.filter((p) => p.id !== pkgId),
-              }
-            : phase
-        )
-      );
       Swal.fire("Deleted!", "Work package has been deleted.", "success");
     }
   };
@@ -91,14 +180,31 @@ export default function PhasesSection({
     console.log("Editing phase:", phase);
   };
 
-  const handleEditWorkPackage = (phaseId, pkg) => {
-    console.log("Editing package:", pkg, "in phase:", phaseId);
+  const handleEditWorkPackage = async (phaseId, pkg) => {
+    try {
+      // Fetch subtask details by ID
+      const result = await dispatch(fetchSubtaskById(pkg.id)).unwrap();
+      console.log("Fetched subtask for editing:", result);
+      toggleAddPhasePopup(
+        phases.find((p) => p.id === phaseId),
+        result,
+        "edit"
+      );
+    } catch (err) {
+      console.error("Error fetching subtask:", err);
+      Swal.fire(
+        "Error",
+        `Failed to load subtask: ${
+          typeof err === "string" ? err : err.message || "An error occurred"
+        }`,
+        "error"
+      );
+    }
   };
 
   return (
     <div className="bg-white p-6 rounded-md shadow-md">
       <div className="max-w-6xl mx-auto">
-        {/* Phases List */}
         <div className="space-y-6">
           {phases.length === 0 ? (
             <div className="bg-white rounded-md shadow-md border border-gray-200 p-10 text-center">
@@ -138,61 +244,100 @@ export default function PhasesSection({
                 onEditPhase={handleEditPhase}
                 onDeleteWorkPackage={handleDeleteWorkPackage}
                 onEditWorkPackage={handleEditWorkPackage}
-                TrashIcon={TrashIcon}
                 assignedUserIds={assignedUserIds || []}
                 taskId={taskId}
+                onAddWorkPackage={() => toggleAddPhasePopup(phase)}
+                subtasks={subtasks[taskId] || []}
+                loading={loading}
+                error={error}
+                onSubmitWorkPackage={handleSubmitWorkPackage}
               />
             ))
           )}
         </div>
       </div>
 
-      {/* Add Work Package Popup */}
+      {/* Add/Edit Work Package Popup */}
       {isAddPhaseOpen && selectedPhase && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black bg-opacity-40 backdrop-blur-sm"
-            onClick={() => setIsAddPhaseOpen(false)}
-          ></div>
-
-          {/* Popup */}
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-8 overflow-y-auto max-h-[90vh]">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
-              <h3 className="text-3xl font-bold text-gray-800">
-                Create Work Package
-              </h3>
-              <button
-                onClick={() => setIsAddPhaseOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-full hover:bg-gray-100"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="relative w-full max-w-6xl xl:max-w-7xl max-h-[95vh] bg-white shadow-2xl overflow-hidden">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4 text-white">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg shadow-sm">
+                    <svg
+                      className="h-5 w-5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">
+                      {modalMode === "edit" ? "Edit Subtask" : "Create Subtask"}
+                    </h2>
+                    <p className="text-blue-100 text-sm">
+                      {modalMode === "edit"
+                        ? "Update the subtask details"
+                        : "Add a new subtask to this phase"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAddPhaseOpen(false)}
+                  className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 backdrop-blur-sm"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    className="h-4 w-4 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            {/* AddWorkPackagePage Component */}
-            <AddWorkPackagePage
-              onCancel={() => setIsAddPhaseOpen(false)}
-              onWorkPackageAdd={handleAddPhase}
-              phaseId={selectedPhase.id}
-              phaseWorkers={selectedPhase.workers}
-            />
+            {/* Content Section */}
+            <div className="p-6 max-h-[calc(95vh-100px)] overflow-y-auto custom-scrollbar">
+              <AddWorkPackagePage
+                onCancel={() => setIsAddPhaseOpen(false)}
+                taskId={taskId}
+                assignedUserIds={assignedUserIds}
+                onSubmitWorkPackage={handleSubmitWorkPackage}
+                subtask={selectedSubtask}
+                mode={modalMode}
+                phaseId={selectedPhase.id}
+              />
+            </div>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-md">
+          Error:{" "}
+          {typeof error === "string"
+            ? error
+            : error.message || "An error occurred"}
         </div>
       )}
     </div>
   );
-}
+};
+
+export default PhasesSection;
